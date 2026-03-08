@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "outputDirectory": ".next",
+  "regions": ["sin1"],
+  "env": {
+    "OKX_API_KEY": "@okx-api-key",
+    "OKX_SECRET_KEY": "@okx-secret-key",
+    "OKX_PASSPHRASE": "@okx-passphrase",
+    "QWEN_API_KEY": "@qwen-api-key",
+    "NEXT_PUBLIC_SUPABASE_URL": "@supabase-url",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase-anon-key"
+  },
+  "crons": [{
+    "path": "/api/cron/agent-check",
+    "schedule": "*/1 * * * *"
+  }, {
+    "path": "/api/cron/pnl-check",
+    "schedule": "*/5 * * * *"
+  }]
+}

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Agent Hunter - 自动狩猎平台</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: linear-gradient(135deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%);
+      color: #f8fafc;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+    }
+
+    /* 渐变文本 */
+    .gradient-text {
+      background: linear-gradient(135deg, #00ff88, #00d4ff, #ff00ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* 玻璃态 */
+    .glass {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+    }
+
+    .glass-strong {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    /* 卡片 */
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(0, 255, 136, 0.3);
+      box-shadow: 0 20px 40px rgba(0, 255, 136, 0.1);
+    }
+
+    /* 按钮 */
+    .btn-primary {
+      background: linear-gradient(135deg, #00ff88, #00d4ff);
+      color: #000;
+      font-weight: 600;
+      border: none;
+      border-radius: 0.75rem;
+      padding: 0.75rem 1.5rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary:hover {
+      transform: scale(1.05);
+      box-shadow: 0 10px 30px rgba(0, 255, 136, 0.4);
+      opacity: 0.9;
+    }
+
+    /* 状态灯 */
+    .status-dot {
+      width: 0.75rem;
+      height: 0.75rem;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .status-running {
+      background: #00ff88;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .status-stopped {
+      background: #6b7280;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.1); }
+    }
+
+    /* 容器 */
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    /* 导航栏 */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding: 1rem 0;
+    }
+
+    /* 网格布局 */
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+
+    @media (max-width: 768px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+
+    /* 表格 */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      text-align: left;
+      padding: 1rem;
+      font-size: 0.875rem;
+      color: #9ca3af;
+      font-weight: 500;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* 徽章 */
+    .badge {
+      display: inline-flex;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .badge-green {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-yellow {
+      background: rgba(245, 158, 11, 0.15);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    /* 工具类 */
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+    .gap-2 { gap: 0.5rem; }
+    .gap-3 { gap: 0.75rem; }
+    .gap-4 { gap: 1rem; }
+    .gap-6 { gap: 1.5rem; }
+    .text-sm { font-size: 0.875rem; }
+    .text-xs { font-size: 0.75rem; }
+    .text-lg { font-size: 1.125rem; }
+    .text-xl { font-size: 1.25rem; }
+    .text-2xl { font-size: 1.5rem; }
+    .text-3xl { font-size: 1.875rem; }
+    .text-4xl { font-size: 2.25rem; }
+    .font-bold { font-weight: 700; }
+    .font-medium { font-weight: 500; }
+    .text-gray-400 { color: #9ca3af; }
+    .text-gray-500 { color: #6b7280; }
+    .text-green-400 { color: #10b981; }
+    .text-red-400 { color: #ef4444; }
+    .p-4 { padding: 1rem; }
+    .p-6 { padding: 1.5rem; }
+    .py-8 { padding-top: 2rem; padding-bottom: 2rem; }
+    .py-12 { padding-top: 3rem; padding-bottom: 3rem; }
+    .pb-24 { padding-bottom: 6rem; }
+    .mt-2 { margin-top: 0.5rem; }
+    .mt-8 { margin-top: 2rem; }
+    .mb-4 { margin-bottom: 1rem; }
+    .mb-8 { margin-bottom: 2rem; }
+    .space-y-2 > * + * { margin-top: 0.5rem; }
+    .space-y-4 > * + * { margin-top: 1rem; }
+    .space-y-8 > * + * { margin-top: 2rem; }
+    .w-full { width: 100%; }
+    .h-16 { height: 4rem; }
+    .w-10 { width: 2.5rem; }
+    .h-10 { height: 2.5rem; }
+    .w-3 { width: 0.75rem; }
+    .h-3 { height: 0.75rem; }
+    .w-6 { width: 1.5rem; }
+    .h-6 { height: 1.5rem; }
+    .rounded-xl { border-radius: 0.75rem; }
+    .rounded-2xl { border-radius: 1rem; }
+    .rounded-full { border-radius: 9999px; }
+    .overflow-hidden { overflow: hidden; }
+  </style>
+</head>
+<body>
+  <!-- 导航栏 -->
+  <nav class="navbar">
+    <div class="glass-strong">
+      <div class="container">
+        <div class="flex items-center justify-between" style="height: 4rem;">
+          <a href="/" class="flex items-center gap-3" style="text-decoration: none;">
+            <div style="width: 2.5rem; height: 2.5rem; background: linear-gradient(135deg, #00ff88, #00d4ff); border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2">
+                <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+            </div>
+            <div>
+              <h1 class="gradient-text" style="font-size: 1.125rem; font-weight: 700; line-height: 1.2;">AI Agent Hunter</h1>
+              <p class="text-xs text-gray-400">自动狩猎平台</p>
+            </div>
+          </a>
+          
+          <div class="flex items-center gap-6" style="display: none;" id="desktop-nav">
+            <a href="/agents" class="text-sm text-gray-400" style="text-decoration: none; transition: color 0.2s;">我的 Agent</a>
+            <a href="/strategies" class="text-sm text-gray-400" style="text-decoration: none; transition: color 0.2s;">策略市场</a>
+            <a href="/logs" class="text-sm text-gray-400" style="text-decoration: none; transition: color 0.2s;">狩猎日志</a>
+            <a href="/wallet" class="text-sm text-gray-400" style="text-decoration: none; transition: color 0.2s;">钱包</a>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button class="text-sm text-gray-400" style="background: none; border: none; cursor: pointer;">连接钱包</button>
+            <button class="btn-primary">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2">
+                <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+              创建 Agent
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- 主内容 -->
+  <main class="container py-8 pb-24">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-4xl font-bold gradient-text">AI Agent Hunter</h1>
+        <p class="text-gray-400 mt-2">从人找机会，到 Agent 自动狩猎</p>
+      </div>
+      <button class="btn-primary">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2">
+          <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        创建 Agent
+      </button>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="grid-4 mb-8">
+      <div class="card">
+        <div class="flex items-center justify-between">
+          <div style="color: #00ff88;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>
+            </svg>
+          </div>
+          <span class="text-3xl font-bold gradient-text">$5,239</span>
+        </div>
+        <p class="text-sm text-gray-400 mt-2">总收益</p>
+        <p class="text-xs text-green-400 mt-2">+23% 今日</p>
+      </div>
+
+      <div class="card">
+        <div class="flex items-center justify-between">
+          <div style="color: #00d4ff;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+            </svg>
+          </div>
+          <span class="text-3xl font-bold" style="color: #00d4ff;">79.7%</span>
+        </div>
+        <p class="text-sm text-gray-400 mt-2">平均胜率</p>
+        <p class="text-xs text-green-400 mt-2">+5% 提升</p>
+      </div>
+
+      <div class="card">
+        <div class="flex items-center justify-between">
+          <div style="color: #ff00ff;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          </div>
+          <span class="text-3xl font-bold" style="color: #ff00ff;">2</span>
+        </div>
+        <p class="text-sm text-gray-400 mt-2">运行中 Agent</p>
+        <p class="text-xs text-gray-500 mt-2">共 3 个</p>
+      </div>
+
+      <div class="card">
+        <div class="flex items-center justify-between">
+          <div style="color: #a855f7;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M16 7h6v6M22 7l-8.5 8.5-5-5L2 17"/>
+            </svg>
+          </div>
+          <span class="text-3xl font-bold" style="color: #a855f7;">46</span>
+        </div>
+        <p class="text-sm text-gray-400 mt-2">总交易数</p>
+        <p class="text-xs text-gray-500 mt-2">今日 3 笔</p>
+      </div>
+    </div>
+
+    <!-- Agent 列表 -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold">我的 Agent</h2>
+        <a href="/agents" class="text-sm" style="color: #00d4ff; text-decoration: none;">查看全部 →</a>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="status-dot status-running"></span>
+              <h3 class="text-lg font-bold">激进狩猎</h3>
+            </div>
+            <div class="flex gap-2">
+              <button style="background: none; border: none; cursor: pointer; opacity: 0.5;">⚙️</button>
+              <button style="background: none; border: none; cursor: pointer;">⏹️</button>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div>
+              <p class="text-xs text-gray-400">胜率</p>
+              <p class="text-lg font-bold text-green-400">78.3%</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">收益</p>
+              <p class="text-lg font-bold" style="color: #00ff88;">+$3,456</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">交易</p>
+              <p class="text-lg font-bold">23</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">最后活动</p>
+              <p class="text-sm text-gray-400">2 分钟前</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="status-dot status-stopped"></span>
+              <h3 class="text-lg font-bold">平衡狩猎</h3>
+            </div>
+            <div class="flex gap-2">
+              <button style="background: none; border: none; cursor: pointer; opacity: 0.5;">⚙️</button>
+              <button style="background: none; border: none; cursor: pointer;">▶️</button>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div>
+              <p class="text-xs text-gray-400">胜率</p>
+              <p class="text-lg font-bold text-green-400">73.3%</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">收益</p>
+              <p class="text-lg font-bold" style="color: #00ff88;">+$1,890</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">交易</p>
+              <p class="text-lg font-bold">15</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">最后活动</p>
+              <p class="text-sm text-gray-400">1 小时前</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="status-dot status-running"></span>
+              <h3 class="text-lg font-bold">保守狩猎</h3>
+            </div>
+            <div class="flex gap-2">
+              <button style="background: none; border: none; cursor: pointer; opacity: 0.5;">⚙️</button>
+              <button style="background: none; border: none; cursor: pointer;">⏹️</button>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div>
+              <p class="text-xs text-gray-400">胜率</p>
+              <p class="text-lg font-bold text-green-400">87.5%</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">收益</p>
+              <p class="text-lg font-bold" style="color: #00ff88;">+$892</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">交易</p>
+              <p class="text-lg font-bold">8</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">最后活动</p>
+              <p class="text-sm text-gray-400">5 分钟前</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 今日交易 -->
+    <div>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold">今日交易</h2>
+        <a href="/logs" class="text-sm" style="color: #00d4ff; text-decoration: none;">查看日志 →</a>
+      </div>
+
+      <div class="card" style="padding: 0; overflow: hidden;">
+        <table>
+          <thead>
+            <tr style="background: rgba(255,255,255,0.05);">
+              <th>代币</th>
+              <th>操作</th>
+              <th>金额</th>
+              <th>PnL</th>
+              <th>时间</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="font-weight: 600;">TITAN</td>
+              <td><span class="badge badge-green">BUY</span></td>
+              <td class="text-gray-400">$100</td>
+              <td class="font-bold text-green-400">+$120</td>
+              <td class="text-gray-400">10:23</td>
+              <td><span class="badge badge-green">completed</span></td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">xETH</td>
+              <td><span class="badge badge-green">BUY</span></td>
+              <td class="text-gray-400">$100</td>
+              <td class="font-bold text-green-400">+$89</td>
+              <td class="text-gray-400">09:15</td>
+              <td><span class="badge badge-green">completed</span></td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">PEPE</td>
+              <td><span class="badge badge-green">BUY</span></td>
+              <td class="text-gray-400">$100</td>
+              <td class="font-bold text-red-400">-$15</td>
+              <td class="text-gray-400">08:42</td>
+              <td><span class="badge badge-yellow">stopped</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- 页脚 -->
+  <footer style="border-top: 1px solid rgba(255,255,255,0.1); padding: 2rem 0; margin-top: 4rem;">
+    <div class="container text-center text-sm text-gray-500">
+      <p>© 2026 AI Agent Hunter. Built for OKX AI Hackathon.</p>
+      <p style="margin-top: 0.5rem;">Powered by OKX OnchainOS + Qwen 3.5 Plus</p>
+    </div>
+  </footer>
+
+  <script>
+    // 显示桌面导航
+    if (window.innerWidth > 768) {
+      document.getElementById('desktop-nav').style.display = 'flex';
+    }
+  </script>
+</body>
+</html>
