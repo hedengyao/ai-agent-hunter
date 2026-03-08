@@ -42,7 +42,12 @@ export default function LogsPage() {
       const res = await fetch('/api/trades/stats')
       const data = await res.json()
       if (data.success) {
-        setStats(data.data)
+        setStats({
+          totalTrades: data.data.totalTrades || 0,
+          successfulTrades: data.data.successfulTrades || 0,
+          failedTrades: data.data.failedTrades || 0,
+          totalPnl: data.data.totalPnl || 0,
+        })
       }
     } catch (error) {
       console.error('获取统计失败:', error)

@@ -4,52 +4,48 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-// GET - 获取交易统计
+// GET - 获取今日交易（最多 10 条）
 export async function GET() {
   try {
     if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json({
         success: false,
         error: 'Supabase 未配置',
+        data: [],
       })
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // 获取所有交易
-    const { data: trades } = await supabase
-      .from('trades')
-      .select('status, pnl, created_at')
-
-    // 统计数据
-    const totalTrades = trades?.length || 0
-    const successfulTrades = trades?.filter(t => t.status === 'completed').length || 0
-    const failedTrades = trades?.filter(t => t.status === 'failed').length || 0
-    const totalPnl = trades?.reduce((sum, t) => sum + (t.pnl || 0), 0) || 0
-
-    // 计算今日交易数
+    // 获取今天的日期范围
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const todayTrades = trades?.filter(t => {
-      const tradeDate = new Date(t.created_at)
-      return tradeDate >= today
-    }).length || 0
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+
+    // 获取今日交易
+    const { data: trades, error } = await supabase
+      .from('trades')
+      .select('*')
+      .gte('created_at', today.toISOString())
+      .lt('created_at', tomorrow.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    if (error) {
+      throw error
+    }
 
     return NextResponse.json({
       success: true,
-      data: {
-        totalTrades,
-        successfulTrades,
-        failedTrades,
-        totalPnl,
-        todayTrades,
-      },
+      data: trades || [],
       timestamp: new Date().toISOString(),
     })
   } catch (error: any) {
     return NextResponse.json({
       success: false,
       error: error.message,
+      data: [],
     }, { status: 500 })
   }
 }
