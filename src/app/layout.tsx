@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { WalletProvider } from '@/lib/WalletContext'
 
 export const metadata: Metadata = {
   title: 'AI Agent Hunter - 自动狩猎平台',
@@ -14,7 +15,9 @@ export default function RootLayout({
   return (
     <html lang="zh" className="dark">
       <body>
-        {children}
+        <WalletProvider>
+          {children}
+        </WalletProvider>
       </body>
     </html>
   )

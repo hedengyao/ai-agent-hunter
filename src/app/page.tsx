@@ -8,75 +8,75 @@ import { useRouter } from 'next/navigation'
 export default function HomePage() {
   const router = useRouter()
   const [hoveredCard, setHoveredCard] = useState<number | null>(null)
-  const [agents, setAgents] = useState([
-    { id: '1', name: '激进狩猎', status: 'running' as const, winRate: 78.3, pnl: 3456, trades: 23, activity: '2 分钟前' },
-    { id: '2', name: '平衡狩猎', status: 'stopped' as const, winRate: 73.3, pnl: 1890, trades: 15, activity: '1 小时前' },
-    { id: '3', name: '保守狩猎', status: 'running' as const, winRate: 87.5, pnl: 892, trades: 8, activity: '5 分钟前' },
-  ])
+  const [agents, setAgents] = useState<any[]>([])
   const [signals, setSignals] = useState<any[]>([])
+  const [trades, setTrades] = useState<any[]>([])
+  const [statsData, setStatsData] = useState({ totalPnl: 0, todayTrades: 0 })
 
-  // 加载真实 Agent 状态
+  // 加载真实数据（基于钱包地址）
   useEffect(() => {
-    async function loadAgents() {
+    async function loadData() {
+      const savedWallet = localStorage.getItem('wallet_address')
+      
+      if (!savedWallet) {
+        // 未连接钱包：清空所有数据
+        setAgents([])
+        setSignals([])
+        setTrades([])
+        setStatsData({ totalPnl: 0, todayTrades: 0 })
+        return
+      }
+
       try {
-        const response = await fetch('/api/agents')
-        const result = await response.json()
-        
-        if (result.success && result.data && result.data.length > 0) {
-          setAgents(result.data.map((agent: any) => ({
-            id: agent.id,
-            name: agent.config?.name || 'Agent',
-            status: agent.status,
-            winRate: agent.winRate || 0,
-            pnl: agent.totalPnl || 0,
-            trades: agent.totalTrades || 0,
-            activity: new Date(agent.lastActivity).toLocaleString('zh-CN'),
-          })))
+        // 获取用户数据
+        const userRes = await fetch(`/api/user?wallet=${savedWallet}`)
+        const userData = await userRes.json()
+
+        if (userData.success) {
+          setAgents(userData.data.agents || [])
+          setTrades(userData.data.trades || [])
+
+          // 计算统计
+          const totalPnl = userData.data.agents?.reduce((sum: number, a: any) => sum + (a.total_pnl || 0), 0) || 0
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          const todayTrades = userData.data.trades?.filter((t: any) => {
+            const tradeDate = new Date(t.created_at)
+            return tradeDate >= today
+          }).length || 0
+
+          setStatsData({ totalPnl, todayTrades })
         }
-        // 如果没有数据，保持默认模拟数据
+
+        // 获取信号
+        const signalsRes = await fetch('/api/signals')
+        const signalsData = await signalsRes.json()
+        if (signalsData.success) {
+          setSignals(signalsData.data || [])
+        }
       } catch (error) {
-        // API 失败时保持默认模拟数据，不显示错误
-        console.log('使用默认 Agent 数据')
+        console.error('加载数据失败:', error)
       }
     }
-    
-    loadAgents()
-    // 每 30 秒刷新一次
-    const interval = setInterval(loadAgents, 30000)
-    return () => clearInterval(interval)
-  }, [])
 
-  // 加载信号数据
-  useEffect(() => {
-    async function loadSignals() {
-      try {
-        const response = await fetch('/api/signals')
-        const result = await response.json()
-        if (result.success && result.data) {
-          setSignals(result.data)
-        }
-      } catch (error) {
-        console.log('使用模拟信号数据')
-      }
-    }
-    
-    loadSignals()
-    const interval = setInterval(loadSignals, 60000)
+    loadData()
+    const interval = setInterval(loadData, 30000)
     return () => clearInterval(interval)
   }, [])
 
   const stats = [
-    { label: '活跃信号', value: signals.length.toString(), change: '+3 今日', color: '#00ff88', icon: '⚡', link: '/signals' },
-    { label: '平均收益', value: '+156%', change: '+23% 本周', color: '#00d4ff', icon: '📈', link: '/logs' },
+    { label: '活跃信号', value: signals.length.toString(), change: `${signals.filter(s => { const d = new Date(s.created_at); const today = new Date(); today.setHours(0,0,0,0); return d >= today }).length} 今日`, color: '#00ff88', icon: '⚡', link: '/signals' },
+    { label: '平均收益', value: `${agents.length > 0 ? (agents.reduce((sum, a) => sum + (a.total_pnl || 0), 0) / agents.length).toFixed(2) : '0.00'}`, change: `${agents.length > 0 ? '+23% 本周' : ''}`, color: '#00d4ff', icon: '📈', link: '/logs' },
     { label: '运行中 Agent', value: agents.filter(a => a.status === 'running').length.toString(), change: `共 ${agents.length} 个`, color: '#ff00ff', icon: '🤖', link: '/agents?status=running' },
-    { label: '总交易数', value: agents.reduce((sum, a) => sum + (a.trades || 0), 0).toString(), change: '今日 3 笔', color: '#a855f7', icon: '📊', link: '/logs' },
+    { label: '总交易数', value: agents.reduce((sum, a) => sum + (a.total_trades || 0), 0).toString(), change: `今日 ${statsData.todayTrades} 笔`, color: '#a855f7', icon: '📊', link: '/logs' },
   ]
 
-  const trades = [
-    { token: 'TITAN', action: 'BUY', amount: '$100', pnl: '+$120', time: '10:23', status: 'completed' },
-    { token: 'xETH', action: 'BUY', amount: '$100', pnl: '+$89', time: '09:15', status: 'completed' },
-    { token: 'PEPE', action: 'BUY', amount: '$100', pnl: '-$15', time: '08:42', status: 'stopped' },
-  ]
+  const todayTrades = trades.filter(t => {
+    const tradeDate = new Date(t.created_at)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return tradeDate >= today
+  })
 
   // 停止/启动 Agent
   const toggleAgent = (agentId: string, currentStatus: string) => {

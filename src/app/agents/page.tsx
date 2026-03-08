@@ -8,22 +8,33 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    async function fetchAgents() {
+      try {
+        const savedWallet = localStorage.getItem('wallet_address')
+        
+        if (!savedWallet) {
+          // 未连接钱包
+          setAgents([])
+          setLoading(false)
+          return
+        }
+
+        // 获取该钱包的 Agent
+        const res = await fetch(`/api/user?wallet=${savedWallet}`)
+        const data = await res.json()
+        
+        if (data.success) {
+          setAgents(data.data.agents || [])
+        }
+      } catch (error) {
+        console.error('获取 Agent 失败:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchAgents()
   }, [])
-
-  const fetchAgents = async () => {
-    try {
-      const res = await fetch('/api/agents')
-      const data = await res.json()
-      if (data.success) {
-        setAgents(data.data || [])
-      }
-    } catch (error) {
-      console.error('获取 Agent 失败:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const toggleAgent = async (agentId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'running' ? 'stopped' : 'running'
