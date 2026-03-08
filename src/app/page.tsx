@@ -2,13 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import { WalletConnect } from '@/components/WalletConnect'
+import toast, { Toaster } from 'react-hot-toast'
+import { useRouter } from 'next/navigation'
 
 export default function HomePage() {
+  const router = useRouter()
   const [hoveredCard, setHoveredCard] = useState<number | null>(null)
   const [agents, setAgents] = useState([
-    { name: '激进狩猎', status: 'running' as const, winRate: 78.3, pnl: 3456, trades: 23, activity: '2 分钟前' },
-    { name: '平衡狩猎', status: 'stopped' as const, winRate: 73.3, pnl: 1890, trades: 15, activity: '1 小时前' },
-    { name: '保守狩猎', status: 'running' as const, winRate: 87.5, pnl: 892, trades: 8, activity: '5 分钟前' },
+    { id: '1', name: '激进狩猎', status: 'running' as const, winRate: 78.3, pnl: 3456, trades: 23, activity: '2 分钟前' },
+    { id: '2', name: '平衡狩猎', status: 'stopped' as const, winRate: 73.3, pnl: 1890, trades: 15, activity: '1 小时前' },
+    { id: '3', name: '保守狩猎', status: 'running' as const, winRate: 87.5, pnl: 892, trades: 8, activity: '5 分钟前' },
   ])
   const [signals, setSignals] = useState<any[]>([])
 
@@ -63,10 +66,10 @@ export default function HomePage() {
   }, [])
 
   const stats = [
-    { label: '活跃信号', value: signals.length.toString(), change: '+3 今日', color: '#00ff88', icon: '⚡' },
-    { label: '平均收益', value: '+156%', change: '+23% 本周', color: '#00d4ff', icon: '🎯' },
-    { label: '运行中 Agent', value: agents.filter(a => a.status === 'running').length.toString(), change: `共 ${agents.length} 个`, color: '#ff00ff', icon: '🤖' },
-    { label: '总交易数', value: agents.reduce((sum, a) => sum + (a.trades || 0), 0).toString(), change: '今日 3 笔', color: '#a855f7', icon: '📈' },
+    { label: '活跃信号', value: signals.length.toString(), change: '+3 今日', color: '#00ff88', icon: '⚡', link: '/signals' },
+    { label: '平均收益', value: '+156%', change: '+23% 本周', color: '#00d4ff', icon: '📈', link: '/logs' },
+    { label: '运行中 Agent', value: agents.filter(a => a.status === 'running').length.toString(), change: `共 ${agents.length} 个`, color: '#ff00ff', icon: '🤖', link: '/agents?status=running' },
+    { label: '总交易数', value: agents.reduce((sum, a) => sum + (a.trades || 0), 0).toString(), change: '今日 3 笔', color: '#a855f7', icon: '📊', link: '/logs' },
   ]
 
   const trades = [
@@ -75,6 +78,30 @@ export default function HomePage() {
     { token: 'PEPE', action: 'BUY', amount: '$100', pnl: '-$15', time: '08:42', status: 'stopped' },
   ]
 
+  // 停止/启动 Agent
+  const toggleAgent = (agentId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'running' ? 'stopped' : 'running'
+    
+    // 如果是停止操作，显示确认对话框
+    if (newStatus === 'stopped') {
+      const confirmed = window.confirm('确定要停止这个 Agent 吗？停止后将不再产生收益。')
+      if (!confirmed) return
+    }
+    
+    setAgents(agents.map(a => 
+      a.id === agentId ? { ...a, status: newStatus as 'running' | 'stopped' } : a
+    ))
+    
+    toast.success(`Agent 已${newStatus === 'running' ? '启动' : '停止'}`)
+  }
+
+  // 编辑 Agent - 跳转到编辑页面并传递数据
+  const editAgent = (agent: any) => {
+    // 将 Agent 数据编码后传递到编辑页面
+    const encodedData = encodeURIComponent(JSON.stringify(agent))
+    router.push(`/agents/${agent.id}/edit?data=${encodedData}`)
+  }
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -82,6 +109,8 @@ export default function HomePage() {
       color: '#f8fafc',
       fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
     }}>
+      <Toaster position="top-right" />
+      
       {/* 导航栏 */}
       <nav style={{
         position: 'sticky',
@@ -124,36 +153,6 @@ export default function HomePage() {
             </a>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <WalletConnect />
-              <a href="/signals" style={{ textDecoration: 'none' }}>
-                <button style={{
-                  background: 'rgba(255,255,255,0.1)',
-                  color: '#f8fafc',
-                  fontWeight: 600,
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: '0.75rem',
-                  padding: '0.75rem 1.5rem',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  fontSize: '0.875rem',
-                  transition: 'all 0.3s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
-                }}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                  </svg>
-                  信号广场
-                </button>
-              </a>
             </div>
           </div>
         </div>
@@ -175,36 +174,68 @@ export default function HomePage() {
             }}>AI Agent Hunter</h1>
             <p style={{ color: '#9ca3af', marginTop: '0.5rem' }}>从人找机会，到 Agent 自动狩猎</p>
           </div>
-          <a href="/agents" style={{ textDecoration: 'none' }}>
-            <button style={{
-              background: 'linear-gradient(135deg, #00ff88, #00d4ff)',
-              color: '#000',
-              fontWeight: 600,
-              border: 'none',
-              borderRadius: '0.75rem',
-              padding: '0.75rem 1.5rem',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.875rem',
-              transition: 'all 0.3s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.05)'
-              e.currentTarget.style.boxShadow = '0 10px 30px rgba(0,255,136,0.4)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1)'
-              e.currentTarget.style.boxShadow = 'none'
-            }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2">
-                <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
-              </svg>
-              创建 Agent
-            </button>
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <a href="/signals" style={{ textDecoration: 'none' }}>
+              <button style={{
+                background: 'rgba(255,255,255,0.1)',
+                color: '#f8fafc',
+                fontWeight: 600,
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '0.75rem',
+                padding: '0.75rem 1.5rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontSize: '0.875rem',
+                transition: 'all 0.3s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
+              }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+                信号广场
+              </button>
+            </a>
+            <a href="/agents/edit" style={{ textDecoration: 'none' }}>
+              <button style={{
+                background: 'linear-gradient(135deg, #00ff88, #00d4ff)',
+                color: '#000',
+                fontWeight: 600,
+                border: 'none',
+                borderRadius: '0.75rem',
+                padding: '0.75rem 1.5rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontSize: '0.875rem',
+                transition: 'all 0.3s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)'
+                e.currentTarget.style.boxShadow = '0 10px 30px rgba(0,255,136,0.4)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2">
+                  <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+                创建 Agent
+              </button>
+            </a>
+          </div>
         </div>
 
         {/* 统计卡片 */}
@@ -215,29 +246,30 @@ export default function HomePage() {
           marginBottom: '2rem',
         }}>
           {stats.map((stat, i) => (
-            <div
-              key={i}
-              onMouseEnter={() => setHoveredCard(i)}
-              onMouseLeave={() => setHoveredCard(null)}
-              style={{
-                background: 'rgba(255,255,255,0.05)',
-                backdropFilter: 'blur(20px)',
-                border: hoveredCard === i ? '1px solid rgba(0,255,136,0.3)' : '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '1rem',
-                padding: '1.5rem',
-                transition: 'all 0.3s ease',
-                cursor: 'pointer',
-                transform: hoveredCard === i ? 'translateY(-4px)' : 'translateY(0)',
-                boxShadow: hoveredCard === i ? `0 20px 40px ${stat.color}20` : 'none',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '1.5rem' }}>{stat.icon}</span>
-                <span style={{ fontSize: '1.875rem', fontWeight: 700, color: stat.color }}>{stat.value}</span>
+            <a href={stat.link} key={i} style={{ textDecoration: 'none' }}>
+              <div
+                onMouseEnter={() => setHoveredCard(i)}
+                onMouseLeave={() => setHoveredCard(null)}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  backdropFilter: 'blur(20px)',
+                  border: hoveredCard === i ? '1px solid rgba(0,255,136,0.3)' : '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '1rem',
+                  padding: '1.5rem',
+                  transition: 'all 0.3s ease',
+                  cursor: 'pointer',
+                  transform: hoveredCard === i ? 'translateY(-4px)' : 'translateY(0)',
+                  boxShadow: hoveredCard === i ? `0 20px 40px ${stat.color}20` : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '1.5rem' }}>{stat.icon}</span>
+                  <span style={{ fontSize: '1.875rem', fontWeight: 700, color: stat.color }}>{stat.value}</span>
+                </div>
+                <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: 0 }}>{stat.label}</p>
+                <p style={{ fontSize: '0.75rem', color: '#10b981', margin: '0.25rem 0 0 0' }}>{stat.change}</p>
               </div>
-              <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: 0 }}>{stat.label}</p>
-              <p style={{ fontSize: '0.75rem', color: '#10b981', margin: '0.25rem 0 0 0' }}>{stat.change}</p>
-            </div>
+            </a>
           ))}
         </div>
 
@@ -278,8 +310,50 @@ export default function HomePage() {
                     <h3 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0 }}>{agent.name}</h3>
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5, fontSize: '1rem' }}>⚙️</button>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem' }}>
+                    <button 
+                      onClick={() => editAgent(agent)}
+                      style={{ 
+                        background: 'rgba(255,255,255,0.1)', 
+                        border: 'none', 
+                        borderRadius: '0.5rem',
+                        cursor: 'pointer', 
+                        fontSize: '1rem',
+                        padding: '0.25rem',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.2)'
+                        e.currentTarget.style.transform = 'scale(1.1)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                        e.currentTarget.style.transform = 'scale(1)'
+                      }}
+                      title="编辑 Agent"
+                    >
+                      ⚙️
+                    </button>
+                    <button 
+                      onClick={() => toggleAgent(agent.id, agent.status)}
+                      style={{ 
+                        background: agent.status === 'running' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)', 
+                        border: 'none', 
+                        borderRadius: '0.5rem',
+                        cursor: 'pointer', 
+                        fontSize: '1rem',
+                        padding: '0.25rem',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = agent.status === 'running' ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'
+                        e.currentTarget.style.transform = 'scale(1.1)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = agent.status === 'running' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'
+                        e.currentTarget.style.transform = 'scale(1)'
+                      }}
+                      title={agent.status === 'running' ? '停止 Agent' : '启动 Agent'}
+                    >
                       {agent.status === 'running' ? '⏹️' : '▶️'}
                     </button>
                   </div>

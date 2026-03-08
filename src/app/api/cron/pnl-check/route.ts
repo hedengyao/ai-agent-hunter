@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 /**
  * 定时检查止盈止损
  * 每 5 分钟执行一次
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     // 验证 Cron 密钥
-    const authHeader = 'authorization' in req ? req.headers.get('authorization') : ''
+    const authHeader = request.headers.get('authorization') || ''
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

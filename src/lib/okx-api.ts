@@ -1,16 +1,20 @@
 /**
  * OKX OnchainOS API Client
  * 完整集成所有 OKX Skills (7+)
- * 
+ *
  * 专为 AI Agent 自动狩猎优化
  */
 
 import crypto from 'crypto'
 
-const BASE_URL = 'https://web3.okx.com'
+// 测试环境配置
+const USE_TESTNET = process.env.OKX_USE_TESTNET === 'true'
+const BASE_URL = USE_TESTNET ? 'https://www.okx.com' : 'https://web3.okx.com'
 const OKX_API_KEY = process.env.OKX_API_KEY || 'demo-key'
 const OKX_SECRET_KEY = process.env.OKX_SECRET_KEY || 'demo-secret'
 const OKX_PASSPHRASE = process.env.OKX_PASSPHRASE || 'demo-passphrase'
+
+console.log(`🔧 OKX API: ${USE_TESTNET ? '🧪 测试环境' : '🌐 生产环境'}`)
 
 function generateSignature(timestamp: string, method: string, path: string, body = ''): string {
   const message = timestamp + method + path + body
@@ -26,12 +30,13 @@ export async function okxFetch<T>(
   body: any = null,
   retryCount = 0
 ): Promise<T> {
-  const timestamp = new Date().toISOString()
-  const bodyStr = body ? JSON.stringify(body) : ''
+  // ISO8601 格式的时间戳（毫秒精度）
+  const timestamp = new Date().toISOString().replace(/\.\d+Z$/, '.000Z')
+  const bodyStr = body && (method === 'POST' || method === 'PUT') ? JSON.stringify(body) : ''
   const signature = generateSignature(timestamp, method, path, bodyStr)
 
   try {
-    const response = await fetch(`${BASE_URL}${path}`, {
+    const options: any = {
       method,
       headers: {
         'OK-ACCESS-KEY': OKX_API_KEY,
@@ -40,15 +45,22 @@ export async function okxFetch<T>(
         'OK-ACCESS-TIMESTAMP': timestamp,
         'Content-Type': 'application/json',
       },
-      body: bodyStr,
-    })
+    }
+    
+    // GET/HEAD 请求不带 body
+    if (bodyStr && (method === 'POST' || method === 'PUT')) {
+      options.body = bodyStr
+    }
 
+    const response = await fetch(`${BASE_URL}${path}`, options)
+    
     const result = await response.json()
+    
     if (result.code === '50011' && retryCount < 3) {
       await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000))
       return okxFetch(method, path, body, retryCount + 1)
     }
-    if (result.code !== '0') throw new Error(`API Error: ${result.code}`)
+    if (result.code !== '0') throw new Error(`API Error: ${result.code} - ${result.msg || 'Unknown error'}`)
     return result.data as T
   } catch (error: any) {
     throw new Error(`OKX API: ${error.message}`)
@@ -71,11 +83,12 @@ export interface Signal {
 }
 
 export async function getSignals(limit = 20): Promise<Signal[]> {
-  return okxFetch('GET', `/api/v6/dex/signals?limit=${limit}`)
+  // OKX Signals API 需要 POST 方法
+  return okxFetch('POST', `/api/v6/dex/signals?limit=${limit}`)
 }
 
 export async function getSignalDetail(signalId: string): Promise<Signal> {
-  return okxFetch('GET', `/api/v6/dex/signals/${signalId}`)
+  return okxFetch('POST', `/api/v6/dex/signals/${signalId}`)
 }
 
 // ==================== okx-dex-swap ====================

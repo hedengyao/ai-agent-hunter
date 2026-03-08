@@ -1,47 +1,104 @@
 import { NextResponse } from 'next/server'
-import { agentManager, type AgentConfig } from '@/lib/agent-runner'
-import { createAgent, getAgents as getAgentsFromDB, updateAgentStatus } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+import { startAgentJob, stopAgent } from '@/lib/agent-scheduler-v2'
 
-// 存储 Agent 配置 (内存缓存)
-const agentConfigs = new Map<string, AgentConfig>()
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-// GET - 获取所有 Agent 状态
+// GET - 获取所有 Agent
 export async function GET() {
   try {
-    // 优先从数据库获取
-    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      try {
-        const dbAgents = await getAgentsFromDB('demo-user')
-        const states = agentManager.getAllStates()
-        
-        return NextResponse.json({
-          success: true,
-          data: dbAgents.map(dbAgent => {
-            const state = states.find(s => s.id === dbAgent.id)
-            return {
-              ...state,
-              config: {
-                name: dbAgent.name,
-                ...dbAgent.config,
-              },
-            }
-          }),
-        })
-      } catch (dbError) {
-        console.log('数据库不可用，使用内存数据')
-      }
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json({
+        success: false,
+        error: 'Supabase 未配置',
+        data: [],
+      })
     }
-    
-    // 降级到内存数据
-    const states = agentManager.getAllStates()
-    const configs = Array.from(agentConfigs.values())
-    
+
+    const supabase = createClient(supabaseUrl, supabaseKey)
+    const { data, error } = await supabase.from('agents').select('*').order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('获取 Agent 失败:', error.message)
+      return NextResponse.json({
+        success: false,
+        error: error.message,
+        data: [],
+      })
+    }
+
     return NextResponse.json({
       success: true,
-      data: states.map(state => ({
-        ...state,
-        config: configs.find(c => c.id === state.id),
-      })),
+      data: data || [],
+      source: 'Database',
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error: any) {
+    return NextResponse.json({
+      success: false,
+      error: error.message,
+      data: [],
+    }, { status: 500 })
+  }
+}
+
+// POST - 创建新 Agent
+export async function POST(request: Request) {
+  try {
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json({
+        success: false,
+        error: 'Supabase 未配置',
+      })
+    }
+
+    const body = await request.json()
+    const { name, config, autoStart } = body
+
+    if (!name) {
+      return NextResponse.json({
+        success: false,
+        error: 'Agent 名称不能为空',
+      }, { status: 400 })
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    // 创建 Agent
+    const { data, error } = await supabase.from('agents').insert({
+      name: name,
+      user_id: 'ad95b1cc-dbb0-4d85-b132-404d27e28a08', // 测试用户 ID
+      status: autoStart ? 'running' : 'stopped',
+      min_signal_strength: config?.minSignalStrength || 85,
+      max_position: config?.maxPosition || 10,
+      take_profit: config?.takeProfit || 100,
+      stop_loss: config?.stopLoss || 20,
+      gas_limit: config?.gasLimit || 50,
+      auto_execute: config?.autoExecute !== false,
+      win_rate: 0,
+      total_pnl: 0,
+      total_trades: 0,
+    }).select()
+
+    if (error) {
+      console.error('创建 Agent 失败:', error.message)
+      return NextResponse.json({
+        success: false,
+        error: error.message,
+      })
+    }
+
+    // 如果自动启动，启动监控任务
+    if (autoStart && data && data[0]) {
+      // TODO: 启动 Agent 监控
+      console.log('🚀 自动启动 Agent:', data[0].name)
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: data[0],
+      message: 'Agent 创建成功',
     })
   } catch (error: any) {
     return NextResponse.json({
@@ -51,61 +108,55 @@ export async function GET() {
   }
 }
 
-// POST - 创建新 Agent
-export async function POST(request: Request) {
+// PATCH - 更新 Agent 状态（启动/停止）
+export async function PATCH(request: Request) {
   try {
     const body = await request.json()
-    const { name, params } = body
+    const { agentId, status, action } = body
 
-    const config: AgentConfig = {
-      id: `agent-${Date.now()}`,
-      name: name || '新 Agent',
-      minSignalStrength: params?.minSignalStrength || 85,
-      narrativeFilter: params?.narrativeFilter || ['hot'],
-      maxPosition: params?.maxPosition || 10,
-      takeProfit: params?.takeProfit || 100,
-      stopLoss: params?.stopLoss || 20,
-      gasLimit: params?.gasLimit || 50,
-      autoExecute: params?.autoExecute ?? true,
+    if (!agentId) {
+      return NextResponse.json({
+        success: false,
+        error: 'Agent ID 不能为空',
+      }, { status: 400 })
     }
 
-    // 尝试存储到数据库
-    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      try {
-        await createAgent({
-          name: config.name,
-          user_id: 'demo-user',
-          config: {
-            minSignalStrength: config.minSignalStrength,
-            narrativeFilter: config.narrativeFilter,
-            maxPosition: config.maxPosition,
-            takeProfit: config.takeProfit,
-            stopLoss: config.stopLoss,
-            gasLimit: config.gasLimit,
-            autoExecute: config.autoExecute,
-          },
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    if (status) {
+      // 更新状态
+      const { data, error } = await supabase
+        .from('agents')
+        .update({ status })
+        .eq('id', agentId)
+        .select()
+
+      if (error) {
+        return NextResponse.json({
+          success: false,
+          error: error.message,
         })
-      } catch (dbError) {
-        console.log('数据库存储失败，使用内存存储')
       }
-    }
 
-    // 创建并启动 Agent
-    const agent = agentManager.createAgent(config)
-    agentConfigs.set(config.id, config)
-    
-    if (config.autoExecute) {
-      await agent.start()
+      // 如果启动，启动监控任务
+      if (status === 'running') {
+        console.log('🚀 启动 Agent:', agentId)
+        // TODO: 启动监控
+      } else if (status === 'stopped') {
+        console.log('⏹️ 停止 Agent:', agentId)
+        await stopAgent(agentId)
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: data[0],
+        message: `Agent 已${status === 'running' ? '启动' : '停止'}`,
+      })
     }
 
     return NextResponse.json({
-      success: true,
-      data: {
-        id: config.id,
-        name: config.name,
-        status: config.autoExecute ? 'running' : 'stopped',
-      },
-      message: 'Agent 创建成功',
+      success: false,
+      error: '缺少 status 参数',
     })
   } catch (error: any) {
     return NextResponse.json({
