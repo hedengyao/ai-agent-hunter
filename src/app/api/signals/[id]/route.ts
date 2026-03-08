@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getSignalDetail as fetchDetail } from '@/lib/signals'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 // GET - 获取信号详情
 export async function GET(
@@ -7,18 +10,32 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const signal = await fetchDetail(params.id)
-    
-    if (!signal) {
+    if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json({
         success: false,
-        error: 'Signal not found',
-      }, { status: 404 })
+        error: 'Supabase 未配置',
+      })
     }
-    
+
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    const { data, error } = await supabase
+      .from('signals')
+      .select('*')
+      .eq('id', params.id)
+      .single()
+
+    if (error || !data) {
+      return NextResponse.json({
+        success: false,
+        error: '信号不存在',
+      })
+    }
+
     return NextResponse.json({
       success: true,
-      data: signal,
+      data,
+      timestamp: new Date().toISOString(),
     })
   } catch (error: any) {
     return NextResponse.json({

@@ -2,69 +2,22 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { getSignalDetail, type Signal } from '@/lib/signals'
 import toast, { Toaster } from 'react-hot-toast'
 
-// 模拟信号数据
-const DEMO_SIGNALS: Record<string, Signal> = {
-  '1': {
-    id: '1',
-    tokenSymbol: 'TITAN',
-    tokenAddress: '0xfdc4a45a4bf53957b2c73b1ff323d8cbe39118dd',
-    chainId: '196',
-    signalStrength: 92,
-    signalType: 'convergence',
-    triggeredWallets: [
-      { address: '0xabc1...', type: 'smart_money', amount: '$125K' },
-      { address: '0xdef2...', type: 'smart_money', amount: '$89K' },
-      { address: '0xghi3...', type: 'kol', amount: '$210K' },
-    ],
-    price: '3.01',
-    priceChange24h: 156.3,
-    marketCap: '$2.17M',
-    liquidity: '$690K',
-    riskScore: 85,
-    narrative: 'hot',
-    createdAt: new Date().toISOString(),
-  },
-  '2': {
-    id: '2',
-    tokenSymbol: 'xETH',
-    tokenAddress: '0xe7b000003a45145decf8a28fc755ad5ec5ea025a',
-    chainId: '196',
-    signalStrength: 88,
-    signalType: 'smart_money',
-    triggeredWallets: [
-      { address: '0xjkl4...', type: 'smart_money', amount: '$95K' },
-      { address: '0xmno5...', type: 'whale', amount: '$320K' },
-    ],
-    price: '1985.70',
-    priceChange24h: 89.7,
-    marketCap: '$5.5M',
-    liquidity: '$1.2M',
-    riskScore: 90,
-    narrative: 'trending',
-    createdAt: new Date().toISOString(),
-  },
-  '3': {
-    id: '3',
-    tokenSymbol: 'PEPE',
-    tokenAddress: '0x7890abcd',
-    chainId: '1',
-    signalStrength: 85,
-    signalType: 'kol',
-    triggeredWallets: [
-      { address: '0xpqr6...', type: 'kol', amount: '$180K' },
-      { address: '0xstu7...', type: 'kol', amount: '$150K' },
-    ],
-    price: '0.00001234',
-    priceChange24h: 67.8,
-    marketCap: '$8.9M',
-    liquidity: '$890K',
-    riskScore: 78,
-    narrative: 'hot',
-    createdAt: new Date().toISOString(),
-  },
+interface Signal {
+  id: string
+  tokenSymbol: string
+  tokenAddress: string
+  chainId: string
+  signalStrength: number
+  signalType: string
+  triggeredWallets: Array<{ address: string; type: string; amount: string }>
+  price: string
+  priceChange24h: number
+  marketCap: string
+  liquidity: string
+  narrative?: string
+  createdAt: string
 }
 
 export default function SignalDetailPage() {
@@ -78,89 +31,66 @@ export default function SignalDetailPage() {
   useEffect(() => {
     async function loadSignal() {
       try {
-        // 优先使用模拟数据
-        const demoSignal = DEMO_SIGNALS[params.id as string]
-        if (demoSignal) {
-          setSignal(demoSignal)
+        // 从数据库获取信号
+        const res = await fetch(`/api/signals/${params.id}`)
+        const data = await res.json()
+        
+        if (data.success && data.data) {
+          setSignal(data.data)
         } else {
-          // 尝试加载真实数据
-          const data = await getSignalDetail(params.id as string)
-          setSignal(data || null)
+          toast.error('信号不存在')
         }
       } catch (error) {
-        console.log('使用模拟信号数据')
-        const demoSignal = DEMO_SIGNALS[params.id as string]
-        if (demoSignal) {
-          setSignal(demoSignal)
-        }
+        console.error('加载信号失败:', error)
+        toast.error('加载失败')
       } finally {
         setLoading(false)
       }
     }
+
     loadSignal()
   }, [params.id])
 
-  // AI 分析
-  const handleAnalyze = async () => {
+  const analyzeSignal = async () => {
     if (!signal) return
     
     setAnalyzing(true)
-    
-    // TODO: 调用 Qwen AI 分析
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    setAnalysis(`## ${signal.tokenSymbol} 分析报告
-
-**信号强度**: ${signal.signalStrength}/100
-**信号类型**: ${signal.signalType === 'convergence' ? '多源收敛' : signal.signalType === 'smart_money' ? '聪明钱' : 'KOL/巨鲸'}
-
-**聪明钱动向**: 
-${signal.triggeredWallets.map(w => `- ${w.type === 'smart_money' ? '🧠' : w.type === 'kol' ? '📢' : '🐋'} ${w.amount}`).join('\n')}
-
-**价格趋势**: 
-当前价格 $${signal.price}
-24h 涨幅 ${signal.priceChange24h}%
-
-**风险评估**: 
-- 市值：${signal.marketCap}
-- 流动性：${signal.liquidity}
-- 风险评分：${signal.riskScore}/100
-
-**投资建议**: 
-${signal.signalStrength >= 90 ? '强烈建议买入 - 多个聪明钱同时建仓，信号强度极高' : 
-  signal.signalStrength >= 85 ? '建议买入 - 聪明钱积极建仓，信号强度高' : 
-  '建议观望 - 等待更明确信号'}
-
-**目标价位**: 
-- 短期：+50%
-- 中期：+100%
-
-**止损建议**: -20%`)
-    
-    setAnalyzing(false)
+    try {
+      const res = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tokenSymbol: signal.tokenSymbol,
+          tokenAddress: signal.tokenAddress,
+          chainId: signal.chainId,
+          signalStrength: signal.signalStrength,
+          price: signal.price,
+          priceChange24h: signal.priceChange24h,
+        }),
+      })
+      
+      const data = await res.json()
+      
+      if (data.success) {
+        setAnalysis(data.analysis)
+        toast.success('AI 分析完成')
+      } else {
+        toast.error(data.error || '分析失败')
+      }
+    } catch (error) {
+      console.error('AI 分析失败:', error)
+      toast.error('分析失败')
+    } finally {
+      setAnalyzing(false)
+    }
   }
 
   if (loading) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%)',
-        color: '#f8fafc',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
+      <div style={{ minHeight: '100vh', padding: '2rem', background: '#0a0a0f', color: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '3rem',
-            height: '3rem',
-            border: '3px solid rgba(255,255,255,0.1)',
-            borderTopColor: '#00ff88',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto 1rem',
-          }}/>
-          <p style={{ color: '#9ca3af' }}>加载信号中...</p>
+          <div style={{ width: '3rem', height: '3rem', border: '3px solid rgba(0,255,136,0.3)', borderTopColor: '#00ff88', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 1rem' }} />
+          <p style={{ color: '#9ca3af' }}>加载信号详情...</p>
         </div>
       </div>
     )
@@ -168,42 +98,17 @@ ${signal.signalStrength >= 90 ? '强烈建议买入 - 多个聪明钱同时建�
 
   if (!signal) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%)',
-        color: '#f8fafc',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <p style={{ color: '#9ca3af' }}>信号不存在</p>
-          <button
-            onClick={() => router.push('/')}
-            style={{
-              marginTop: '1rem',
-              padding: '0.75rem 1.5rem',
-              background: 'rgba(255,255,255,0.1)',
-              border: 'none',
-              borderRadius: '0.5rem',
-              color: '#f8fafc',
-              cursor: 'pointer',
-            }}
-          >
-            返回首页
-          </button>
+      <div style={{ minHeight: '100vh', padding: '2rem', background: '#0a0a0f', color: '#f8fafc' }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center', paddingTop: '4rem' }}>
+          <p style={{ fontSize: '1.125rem', color: '#9ca3af' }}>信号不存在</p>
+          <button onClick={() => router.back()} style={{ marginTop: '1rem', padding: '0.75rem 1.5rem', background: 'rgba(0,255,136,0.2)', color: '#00ff88', border: '1px solid rgba(0,255,136,0.3)', borderRadius: '0.5rem', cursor: 'pointer' }}>返回</button>
         </div>
       </div>
     )
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%)',
-      color: '#f8fafc',
-      fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
-    }}>
+    <div style={{ minHeight: '100vh', padding: '2rem', background: '#0a0a0f', color: '#f8fafc' }}>
       <Toaster position="top-right" />
 
       {/* 导航栏 */}
@@ -215,33 +120,22 @@ ${signal.signalStrength >= 90 ? '强烈建议买入 - 多个聪明钱同时建�
         backdropFilter: 'blur(24px)',
         borderBottom: '1px solid rgba(255,255,255,0.15)',
       }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 1rem' }}>
+        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '4rem' }}>
-            <button
-              onClick={() => router.back()}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#9ca3af',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontSize: '0.875rem',
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
               </svg>
               返回
             </button>
-            <a href="/" style={{ color: '#9ca3af', textDecoration: 'none', fontSize: '0.875rem' }}>AI Agent Hunter</a>
+            <span style={{ fontSize: '1.125rem', fontWeight: 700, background: 'linear-gradient(135deg, #00ff88, #00d4ff, #ff00ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>信号详情</span>
+            <div style={{ width: '100px' }} />
           </div>
         </div>
       </nav>
 
       {/* 主内容 */}
-      <main style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1rem 6rem' }}>
+      <main style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem 1rem 6rem' }}>
         {/* 信号头部 */}
         <div style={{
           background: 'rgba(255,255,255,0.05)',
@@ -251,7 +145,7 @@ ${signal.signalStrength >= 90 ? '强烈建议买入 - 多个聪明钱同时建�
           padding: '2rem',
           marginBottom: '2rem',
         }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <div style={{
                 width: '4rem',
@@ -261,7 +155,7 @@ ${signal.signalStrength >= 90 ? '强烈建议买入 - 多个聪明钱同时建�
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '1.5rem',
+                fontSize: '2rem',
                 fontWeight: 700,
                 color: '#000',
               }}>
@@ -269,144 +163,146 @@ ${signal.signalStrength >= 90 ? '强烈建议买入 - 多个聪明钱同时建�
               </div>
               <div>
                 <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: 0 }}>{signal.tokenSymbol}</h1>
-                <p style={{ color: '#9ca3af', margin: '0.25rem 0 0 0' }}>{signal.chainId === '196' ? 'X Layer' : 'Ethereum'}</p>
+                <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: '0.25rem 0 0 0' }}>
+                  {signal.chainId === '196' ? 'X Layer' : signal.chainId === '1' ? 'Ethereum' : `Chain ${signal.chainId}`}
+                </p>
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: signal.signalStrength >= 80 ? '#00ff88' : '#f59e0b' }}>
-                {signal.signalStrength}/100
+              <div style={{ fontSize: '2rem', fontWeight: 700, color: signal.signalStrength >= 80 ? '#00ff88' : signal.signalStrength >= 60 ? '#f59e0b' : '#ef4444' }}>
+                {signal.signalStrength}
               </div>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>信号强度</p>
+              <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: 0 }}>信号强度</p>
+            </div>
+          </div>
+
+          {/* 信号强度条 */}
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+              <span style={{ color: '#9ca3af' }}>信号强度</span>
+              <span style={{ color: signal.signalStrength >= 80 ? '#00ff88' : signal.signalStrength >= 60 ? '#f59e0b' : '#ef4444', fontWeight: 600 }}>
+                {signal.signalStrength}/100
+              </span>
+            </div>
+            <div style={{ height: '12px', background: 'rgba(255,255,255,0.1)', borderRadius: '9999px', overflow: 'hidden' }}>
+              <div style={{
+                width: `${signal.signalStrength}%`,
+                height: '100%',
+                background: signal.signalStrength >= 80 
+                  ? 'linear-gradient(90deg, #00ff88, #00d4ff)' 
+                  : signal.signalStrength >= 60 
+                    ? 'linear-gradient(90deg, #f59e0b, #ef4444)' 
+                    : 'linear-gradient(90deg, #ef4444, #dc2626)',
+                transition: 'width 0.5s ease',
+              }} />
             </div>
           </div>
 
           {/* 价格信息 */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
             <div>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>价格</p>
-              <p style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0 }}>${signal.price}</p>
+              <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: 0 }}>当前价格</p>
+              <p style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0.25rem 0 0 0' }}>${signal.price}</p>
             </div>
             <div>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>24h</p>
-              <p style={{ fontSize: '1.125rem', fontWeight: 700, color: signal.priceChange24h >= 0 ? '#10b981' : '#ef4444', margin: 0 }}>
+              <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: 0 }}>24h 变化</p>
+              <p style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0.25rem 0 0 0', color: signal.priceChange24h >= 0 ? '#10b981' : '#ef4444' }}>
                 {signal.priceChange24h >= 0 ? '+' : ''}{signal.priceChange24h}%
               </p>
             </div>
             <div>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>市值</p>
-              <p style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0 }}>{signal.marketCap}</p>
+              <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: 0 }}>市值</p>
+              <p style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0.25rem 0 0 0' }}>{signal.marketCap}</p>
             </div>
             <div>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>流动性</p>
-              <p style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0 }}>{signal.liquidity}</p>
+              <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: 0 }}>流动性</p>
+              <p style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0.25rem 0 0 0' }}>{signal.liquidity}</p>
             </div>
           </div>
 
           {/* 触发钱包 */}
-          <div>
-            <p style={{ fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.5rem' }}>触发钱包</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-              {signal.triggeredWallets.map((wallet, i) => (
-                <span key={i} style={{
-                  padding: '0.5rem 1rem',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem',
-                }}>
-                  {wallet.type === 'smart_money' ? '🧠' : wallet.type === 'kol' ? '📢' : '🐋'} {wallet.amount}
-                </span>
-              ))}
+          {signal.triggeredWallets && signal.triggeredWallets.length > 0 && (
+            <div>
+              <p style={{ fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.75rem' }}>触发钱包</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {signal.triggeredWallets.map((wallet, i) => (
+                  <div key={i} style={{
+                    padding: '0.5rem 0.75rem',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '0.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}>
+                    <span>{wallet.type === 'smart_money' ? '🧠' : wallet.type === 'kol' ? '📢' : '🐋'}</span>
+                    <span style={{ fontSize: '0.875rem' }}>{wallet.amount}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* 叙事标签 */}
+          {signal.narrative && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <span style={{
+                padding: '0.5rem 1rem',
+                background: signal.narrative === 'hot' ? 'rgba(239,68,68,0.2)' : signal.narrative === 'trending' ? 'rgba(245,158,11,0.2)' : 'rgba(107,114,128,0.2)',
+                color: signal.narrative === 'hot' ? '#ef4444' : signal.narrative === 'trending' ? '#f59e0b' : '#9ca3af',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+              }}>
+                {signal.narrative === 'hot' ? '🔥 热门叙事' : signal.narrative === 'trending' ? '📈 上升趋势' : '📝 普通'}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* AI 分析 */}
-        <div style={{ marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>AI 分析</h2>
+        <div style={{
+          background: 'rgba(255,255,255,0.05)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '1rem',
+          padding: '2rem',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 600, margin: 0 }}>🤖 AI 分析</h2>
             <button
-              onClick={handleAnalyze}
+              onClick={analyzeSignal}
               disabled={analyzing}
               style={{
-                background: analyzing ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #00ff88, #00d4ff)',
-                color: analyzing ? '#6b7280' : '#000',
-                fontWeight: 600,
+                padding: '0.75rem 1.5rem',
+                background: analyzing ? 'rgba(255,255,255,0.1)' : 'linear-gradient(135deg, #a855f7, #ec4899)',
+                color: analyzing ? '#6b7280' : '#fff',
                 border: 'none',
                 borderRadius: '0.5rem',
-                padding: '0.75rem 1.5rem',
                 cursor: analyzing ? 'not-allowed' : 'pointer',
-                fontSize: '0.875rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
+                fontWeight: 600,
               }}
             >
-              {analyzing ? (
-                <>
-                  <span style={{
-                    width: '1rem',
-                    height: '1rem',
-                    border: '2px solid rgba(255,255,255,0.1)',
-                    borderTopColor: '#00ff88',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite',
-                  }}/>
-                  分析中...
-                </>
-              ) : (
-                <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2">
-                    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
-                    <path d="M12 6v6l4 2"/>
-                  </svg>
-                  生成分析
-                </>
-              )}
+              {analyzing ? '分析中...' : '生成分析报告'}
             </button>
           </div>
 
-          {analysis && (
+          {analysis ? (
             <div style={{
-              background: 'rgba(255,255,255,0.05)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(0,255,136,0.2)',
-              borderRadius: '1rem',
               padding: '1.5rem',
+              background: 'rgba(0,0,0,0.3)',
+              borderRadius: '0.5rem',
               whiteSpace: 'pre-wrap',
               lineHeight: 1.8,
             }}>
               {analysis}
             </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '3rem 0', color: '#9ca3af' }}>
+              <p style={{ fontSize: '1.125rem' }}>点击"生成分析报告"开始 AI 分析</p>
+              <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>基于 Qwen 3.5 大模型的专业分析</p>
+            </div>
           )}
-        </div>
-
-        {/* 操作按钮 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-          <button style={{
-            background: 'linear-gradient(135deg, #00ff88, #00d4ff)',
-            color: '#000',
-            fontWeight: 700,
-            border: 'none',
-            borderRadius: '0.75rem',
-            padding: '1rem',
-            cursor: 'pointer',
-            fontSize: '1rem',
-          }}>
-            一键跟单
-          </button>
-          <button style={{
-            background: 'rgba(255,255,255,0.05)',
-            color: '#f8fafc',
-            fontWeight: 600,
-            border: '1px solid rgba(255,255,255,0.2)',
-            borderRadius: '0.75rem',
-            padding: '1rem',
-            cursor: 'pointer',
-            fontSize: '1rem',
-          }}>
-            加入自选
-          </button>
         </div>
       </main>
 
