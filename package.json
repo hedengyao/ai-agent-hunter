@@ -6,7 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "prod": "pm2 start ecosystem.config.js",
+    "prod:stop": "pm2 stop ecosystem.config.js",
+    "prod:restart": "pm2 restart ecosystem.config.js",
+    "prod:logs": "pm2 logs",
+    "scheduler": "node scripts/agent-scheduler.js",
+    "docker:build": "docker build -t ai-agent-hunter .",
+    "docker:run": "docker run -d -p 3000:3000 --env-file .env.local ai-agent-hunter"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",

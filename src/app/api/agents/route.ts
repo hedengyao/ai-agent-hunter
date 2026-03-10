@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { startAgentJob, stopAgent } from '@/lib/agent-scheduler-v2'
+import { stopAgent } from '@/lib/agent-scheduler-v2'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''

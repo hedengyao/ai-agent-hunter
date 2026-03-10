@@ -366,7 +366,7 @@ export function useWallet() {
         }
 
         // 使用 connect() 方法连接 Solana 钱包（OKX Wallet 标准）
-        const resp = await solanaProvider.connect()
+        const resp = await (solanaProvider.connect?.() || Promise.reject(new Error('connect 方法不存在')))
 
         if (!resp || !resp.publicKey) {
           throw new Error('连接 Solana 钱包失败')
@@ -396,20 +396,23 @@ export function useWallet() {
         // 如果是方法不支持，尝试备用方案
         if (error.message?.includes('connect is not a function') || error.message?.includes('Unsupported')) {
           // 尝试使用 request 方法
-          try {
-            const resp2 = await solanaProvider.request({ method: 'requestAccounts' })
-            if (resp2 && resp2.length > 0) {
-              setWallet(prev => ({
-                ...prev,
-                chainId: '501',
-                address: resp2[0],
-                balance: '0'
-              }))
-              console.log('Solana 链切换成功（备用方案），地址:', resp2[0])
-              return
+          const fallbackProvider = window.solana || window.okxwallet
+          if (fallbackProvider?.request) {
+            try {
+              const resp2 = await fallbackProvider.request({ method: 'requestAccounts' })
+              if (resp2 && resp2.length > 0) {
+                setWallet(prev => ({
+                  ...prev,
+                  chainId: '501',
+                  address: resp2[0],
+                  balance: '0'
+                }))
+                console.log('Solana 链切换成功（备用方案），地址:', resp2[0])
+                return
+              }
+            } catch (e2: any) {
+              console.error('备用方案也失败:', e2)
             }
-          } catch (e2: any) {
-            console.error('备用方案也失败:', e2)
           }
           throw new Error('当前钱包不支持 Solana 切换，请使用 Phantom 或 Solflare 钱包')
         }
