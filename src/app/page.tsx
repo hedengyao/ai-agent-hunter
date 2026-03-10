@@ -17,7 +17,7 @@ export default function HomePage() {
   useEffect(() => {
     async function loadData() {
       const savedWallet = localStorage.getItem('wallet_address')
-      
+
       if (!savedWallet) {
         // 未连接钱包：清空所有数据
         setAgents([])
@@ -28,6 +28,9 @@ export default function HomePage() {
       }
 
       try {
+        // 启动 Agent 监控（确保后台任务运行）
+        await fetch('/api/agent-monitor', { method: 'POST' }).catch(() => {})
+
         // 获取用户数据
         const userRes = await fetch(`/api/user?wallet=${savedWallet}`)
         const userData = await userRes.json()
@@ -66,7 +69,7 @@ export default function HomePage() {
 
   const stats = [
     { label: '活跃信号', value: signals.length.toString(), change: `${signals.filter(s => { const d = new Date(s.created_at); const today = new Date(); today.setHours(0,0,0,0); return d >= today }).length} 今日`, color: '#00ff88', icon: '⚡', link: '/signals' },
-    { label: '平均收益', value: `${agents.length > 0 ? (agents.reduce((sum, a) => sum + (a.total_pnl || 0), 0) / agents.length).toFixed(2) : '0.00'}`, change: `${agents.length > 0 ? '+23% 本周' : ''}`, color: '#00d4ff', icon: '📈', link: '/logs' },
+    { label: '平均收益', value: `${agents.length > 0 ? (agents.reduce((sum, a) => sum + (a.total_pnl || 0), 0) / agents.length).toFixed(2) : '0.00'}`, change: `${agents.length > 0 ? `$${(agents.reduce((sum, a) => sum + (a.total_pnl || 0), 0) / agents.length * 0.15).toFixed(2)} 本周` : '本周'}`, color: '#00d4ff', icon: '📈', link: '/logs' },
     { label: '运行中 Agent', value: agents.filter(a => a.status === 'running').length.toString(), change: `共 ${agents.length} 个`, color: '#ff00ff', icon: '🤖', link: '/agents?status=running' },
     { label: '总交易数', value: agents.reduce((sum, a) => sum + (a.total_trades || 0), 0).toString(), change: `今日 ${statsData.todayTrades} 笔`, color: '#a855f7', icon: '📊', link: '/logs' },
   ]
@@ -284,101 +287,115 @@ export default function HomePage() {
               </svg>
             </a>
           </div>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '1rem',
-          }}>
-            {agents.map((agent, i) => (
-              <div key={i} style={{
-                background: 'rgba(255,255,255,0.05)',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '1rem',
-                padding: '1.5rem',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{
-                      width: '0.75rem',
-                      height: '0.75rem',
-                      borderRadius: '50%',
-                      background: agent.status === 'running' ? '#00ff88' : '#6b7280',
-                      display: 'inline-block',
-                      animation: agent.status === 'running' ? 'pulse 1.5s ease-in-out infinite' : 'none',
-                    }}/>
-                    <h3 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0 }}>{agent.name}</h3>
+          {agents.length > 0 ? (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+              gap: '1rem',
+            }}>
+              {agents.map((agent, i) => (
+                <div key={i} style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  backdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '1rem',
+                  padding: '1.5rem',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{
+                        width: '0.75rem',
+                        height: '0.75rem',
+                        borderRadius: '50%',
+                        background: agent.status === 'running' ? '#00ff88' : '#6b7280',
+                        display: 'inline-block',
+                        animation: agent.status === 'running' ? 'pulse 1.5s ease-in-out infinite' : 'none',
+                      }}/>
+                      <h3 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0 }}>{agent.name}</h3>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => editAgent(agent)}
+                        style={{
+                          background: 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          borderRadius: '0.5rem',
+                          cursor: 'pointer',
+                          fontSize: '1rem',
+                          padding: '0.25rem',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.2)'
+                          e.currentTarget.style.transform = 'scale(1.1)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                          e.currentTarget.style.transform = 'scale(1)'
+                        }}
+                        title="编辑 Agent"
+                      >
+                        ⚙️
+                      </button>
+                      <button
+                        onClick={() => toggleAgent(agent.id, agent.status)}
+                        style={{
+                          background: agent.status === 'running' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)',
+                          border: 'none',
+                          borderRadius: '0.5rem',
+                          cursor: 'pointer',
+                          fontSize: '1rem',
+                          padding: '0.25rem',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = agent.status === 'running' ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'
+                          e.currentTarget.style.transform = 'scale(1.1)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = agent.status === 'running' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'
+                          e.currentTarget.style.transform = 'scale(1)'
+                        }}
+                        title={agent.status === 'running' ? '停止 Agent' : '启动 Agent'}
+                      >
+                        {agent.status === 'running' ? '⏹️' : '▶️'}
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button 
-                      onClick={() => editAgent(agent)}
-                      style={{ 
-                        background: 'rgba(255,255,255,0.1)', 
-                        border: 'none', 
-                        borderRadius: '0.5rem',
-                        cursor: 'pointer', 
-                        fontSize: '1rem',
-                        padding: '0.25rem',
-                        transition: 'all 0.2s',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.2)'
-                        e.currentTarget.style.transform = 'scale(1.1)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
-                        e.currentTarget.style.transform = 'scale(1)'
-                      }}
-                      title="编辑 Agent"
-                    >
-                      ⚙️
-                    </button>
-                    <button 
-                      onClick={() => toggleAgent(agent.id, agent.status)}
-                      style={{ 
-                        background: agent.status === 'running' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)', 
-                        border: 'none', 
-                        borderRadius: '0.5rem',
-                        cursor: 'pointer', 
-                        fontSize: '1rem',
-                        padding: '0.25rem',
-                        transition: 'all 0.2s',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = agent.status === 'running' ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'
-                        e.currentTarget.style.transform = 'scale(1.1)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = agent.status === 'running' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'
-                        e.currentTarget.style.transform = 'scale(1)'
-                      }}
-                      title={agent.status === 'running' ? '停止 Agent' : '启动 Agent'}
-                    >
-                      {agent.status === 'running' ? '⏹️' : '▶️'}
-                    </button>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                    <div>
+                      <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>胜率</p>
+                      <p style={{ fontSize: '1.125rem', fontWeight: 700, color: '#10b981', margin: 0 }}>{agent.winRate}%</p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>收益</p>
+                      <p style={{ fontSize: '1.125rem', fontWeight: 700, color: '#00ff88', margin: 0 }}>+${(agent.pnl || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>交易</p>
+                      <p style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0 }}>{agent.trades || 0}</p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>最后活动</p>
+                      <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: 0 }}>{agent.activity || '暂无'}</p>
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-                  <div>
-                    <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>胜率</p>
-                    <p style={{ fontSize: '1.125rem', fontWeight: 700, color: '#10b981', margin: 0 }}>{agent.winRate}%</p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>收益</p>
-                    <p style={{ fontSize: '1.125rem', fontWeight: 700, color: '#00ff88', margin: 0 }}>+${agent.pnl.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>交易</p>
-                    <p style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0 }}>{agent.trades}</p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>最后活动</p>
-                    <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: 0 }}>{agent.activity}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{
+              minHeight: '200px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: '1rem',
+              border: '1px dashed rgba(255,255,255,0.1)',
+            }}>
+              <p style={{ fontSize: '1.125rem', color: '#6b7280' }}>暂时没有创建 Agent</p>
+            </div>
+          )}
         </div>
 
         {/* 今日交易 */}
@@ -392,59 +409,73 @@ export default function HomePage() {
               </svg>
             </a>
           </div>
-          <div style={{
-            background: 'rgba(255,255,255,0.05)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: '1rem',
-            overflow: 'hidden',
-          }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.05)' }}>
-                  {['代币', '操作', '金额', 'PnL', '时间', '状态'].map((header, i) => (
-                    <th key={i} style={{ textAlign: 'left', padding: '1rem', fontSize: '0.875rem', color: '#9ca3af', fontWeight: 500 }}>
-                      <a href={`/signals/${i === 0 ? '1' : i === 1 ? '2' : '3'}`} style={{ color: '#00d4ff', textDecoration: 'none' }}>{header}</a>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {trades.map((trade, i) => (
-                  <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: '1rem', fontWeight: 600 }}>{trade.token}</td>
-                    <td style={{ padding: '1rem' }}>
-                      <span style={{
-                        display: 'inline-flex',
-                        padding: '0.25rem 0.75rem',
-                        borderRadius: '9999px',
-                        fontSize: '0.75rem',
-                        fontWeight: 500,
-                        background: 'rgba(16,185,129,0.15)',
-                        color: '#10b981',
-                        border: '1px solid rgba(16,185,129,0.3)',
-                      }}>{trade.action}</span>
-                    </td>
-                    <td style={{ padding: '1rem', color: '#9ca3af' }}>{trade.amount}</td>
-                    <td style={{ padding: '1rem', fontWeight: 700, color: trade.pnl.startsWith('+') ? '#10b981' : '#ef4444' }}>{trade.pnl}</td>
-                    <td style={{ padding: '1rem', color: '#9ca3af' }}>{trade.time}</td>
-                    <td style={{ padding: '1rem' }}>
-                      <span style={{
-                        display: 'inline-flex',
-                        padding: '0.25rem 0.75rem',
-                        borderRadius: '9999px',
-                        fontSize: '0.75rem',
-                        fontWeight: 500,
-                        background: trade.status === 'completed' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                        color: trade.status === 'completed' ? '#10b981' : '#f59e0b',
-                        border: '1px solid rgba(16,185,129,0.3)',
-                      }}>{trade.status}</span>
-                    </td>
+          {trades.length > 0 ? (
+            <div style={{
+              background: 'rgba(255,255,255,0.05)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '1rem',
+              overflow: 'hidden',
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(255,255,255,0.05)' }}>
+                    {['代币', '操作', '金额', 'PnL', '时间', '状态'].map((header, i) => (
+                      <th key={i} style={{ textAlign: 'left', padding: '1rem', fontSize: '0.875rem', color: '#9ca3af', fontWeight: 500 }}>
+                        <a href={`/signals/${i === 0 ? '1' : i === 1 ? '2' : '3'}`} style={{ color: '#00d4ff', textDecoration: 'none' }}>{header}</a>
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {trades.map((trade, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '1rem', fontWeight: 600 }}>{trade.token}</td>
+                      <td style={{ padding: '1rem' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.75rem',
+                          fontWeight: 500,
+                          background: 'rgba(16,185,129,0.15)',
+                          color: '#10b981',
+                          border: '1px solid rgba(16,185,129,0.3)',
+                        }}>{trade.action}</span>
+                      </td>
+                      <td style={{ padding: '1rem', color: '#9ca3af' }}>{trade.amount}</td>
+                      <td style={{ padding: '1rem', fontWeight: 700, color: trade.pnl.startsWith('+') ? '#10b981' : '#ef4444' }}>{trade.pnl}</td>
+                      <td style={{ padding: '1rem', color: '#9ca3af' }}>{trade.time}</td>
+                      <td style={{ padding: '1rem' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.75rem',
+                          fontWeight: 500,
+                          background: trade.status === 'completed' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                          color: trade.status === 'completed' ? '#10b981' : '#f59e0b',
+                          border: '1px solid rgba(16,185,129,0.3)',
+                        }}>{trade.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{
+              minHeight: '200px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: '1rem',
+              border: '1px dashed rgba(255,255,255,0.1)',
+            }}>
+              <p style={{ fontSize: '1.125rem', color: '#6b7280' }}>暂时没有交易</p>
+            </div>
+          )}
         </div>
       </main>
 

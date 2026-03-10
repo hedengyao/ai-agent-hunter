@@ -40,8 +40,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const handleChainChanged = useCallback((chainId: string) => {
     console.log('链切换:', chainId)
-    // 链切换时刷新页面以确保状态同步
-    window.location.reload()
+    // 不刷新页面，由 useWallet hook 处理链切换
   }, [])
 
   // 初始化时检查连接

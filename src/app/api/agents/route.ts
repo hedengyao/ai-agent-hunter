@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { name, config, autoStart } = body
+    const { name, config, autoStart, walletAddress } = body
 
     if (!name) {
       return NextResponse.json({
@@ -65,10 +65,40 @@ export async function POST(request: Request) {
 
     const supabase = createClient(supabaseUrl, supabaseKey)
 
+    // 根据钱包地址获取用户 ID
+    let userId = 'ad95b1cc-dbb0-4d85-b132-404d27e28a08' // 默认测试用户 ID
+    
+    if (walletAddress) {
+      const { data: user } = await supabase
+        .from('users')
+        .select('id')
+        .eq('wallet_address', walletAddress.toLowerCase())
+        .single()
+      
+      if (user) {
+        userId = user.id
+      } else {
+        // 用户不存在，先创建用户
+        const { data: newUser, error: userError } = await supabase
+          .from('users')
+          .insert({
+            wallet_address: walletAddress.toLowerCase(),
+            total_pnl: 0,
+            total_trades: 0,
+          })
+          .select('id')
+          .single()
+        
+        if (!userError && newUser) {
+          userId = newUser.id
+        }
+      }
+    }
+
     // 创建 Agent
     const { data, error } = await supabase.from('agents').insert({
       name: name,
-      user_id: 'ad95b1cc-dbb0-4d85-b132-404d27e28a08', // 测试用户 ID
+      user_id: userId,
       status: autoStart ? 'running' : 'stopped',
       min_signal_strength: config?.minSignalStrength || 85,
       max_position: config?.maxPosition || 10,

@@ -25,10 +25,13 @@ export default function CreateAgentPage() {
       toast.error('请输入 Agent 名称')
       return
     }
-    
+
     setCreating(true)
-    
+
     try {
+      // 获取当前连接的钱包地址
+      const walletAddress = localStorage.getItem('wallet_address') || ''
+
       // 真实调用 API 创建 Agent
       const response = await fetch('/api/agents', {
         method: 'POST',
@@ -36,11 +39,12 @@ export default function CreateAgentPage() {
         body: JSON.stringify({
           name: formData.name,
           config: formData,
+          walletAddress: walletAddress,
         }),
       })
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
         toast.success(`Agent "${formData.name}" 创建成功！`)
         // 跳转到所有 Agent 页面

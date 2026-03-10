@@ -1,78 +1,83 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import toast, { Toaster } from 'react-hot-toast'
 
 export default function LogsPage() {
+  const router = useRouter()
+  const [logs, setLogs] = useState<any[]>([])
   const [trades, setTrades] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const itemsPerPage = 20
-
-  // 统计数据
-  const [stats, setStats] = useState({
-    totalTrades: 0,
-    successfulTrades: 0,
-    failedTrades: 0,
-    totalPnl: 0,
-  })
+  const [wallet, setWallet] = useState<string>('')
+  const [activeTab, setActiveTab] = useState<'logs' | 'trades'>('logs')
 
   useEffect(() => {
-    fetchTrades(currentPage)
-    fetchStats()
-  }, [currentPage])
+    const savedWallet = localStorage.getItem('wallet_address') || ''
+    setWallet(savedWallet)
+    if (savedWallet) {
+      fetchLogs(savedWallet)
+    } else {
+      setLoading(false)
+    }
+  }, [])
 
-  const fetchTrades = async (page: number) => {
+  const fetchLogs = async (walletAddress: string) => {
     try {
-      const res = await fetch(`/api/trades?page=${page}&limit=${itemsPerPage}`)
+      setLoading(true)
+      const res = await fetch(`/api/logs?wallet=${walletAddress}&limit=100`)
       const data = await res.json()
       if (data.success) {
-        setTrades(data.data || [])
-        setTotalPages(data.totalPages || 1)
+        setLogs(data.data || [])
+        setTrades(data.trades || [])
       }
     } catch (error) {
-      console.error('获取交易记录失败:', error)
+      console.error('获取日志失败:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchStats = async () => {
-    try {
-      const res = await fetch('/api/trades/stats')
-      const data = await res.json()
-      if (data.success) {
-        setStats({
-          totalTrades: data.data.totalTrades || 0,
-          successfulTrades: data.data.successfulTrades || 0,
-          failedTrades: data.data.failedTrades || 0,
-          totalPnl: data.data.totalPnl || 0,
-        })
-      }
-    } catch (error) {
-      console.error('获取统计失败:', error)
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return { bg: 'rgba(16,185,129,0.2)', text: '#10b981', label: '✅ 成功' }
-      case 'failed':
-        return { bg: 'rgba(239,68,68,0.2)', text: '#ef4444', label: '❌ 失败' }
+  const getLevelColor = (level: string) => {
+    switch (level) {
+      case 'error':
+        return { bg: 'rgba(239,68,68,0.2)', text: '#ef4444' }
+      case 'warning':
+        return { bg: 'rgba(245,158,11,0.2)', text: '#f59e0b' }
+      case 'success':
+        return { bg: 'rgba(16,185,129,0.2)', text: '#10b981' }
       default:
-        return { bg: 'rgba(245,158,11,0.2)', text: '#f59e0b', label: '⏳ 进行中' }
+        return { bg: 'rgba(59,130,246,0.2)', text: '#3b82f6' }
     }
   }
 
   const getActionColor = (action: string) => {
-    return action === 'buy' 
-      ? { bg: 'rgba(0,212,255,0.2)', text: '#00d4ff', label: '买入' }
-      : { bg: 'rgba(255,0,255,0.2)', text: '#ff00ff', label: '卖出' }
+    if (action === 'buy') {
+      return { bg: 'rgba(0,212,255,0.2)', text: '#00d4ff', label: '买入' }
+    } else if (action === 'sell') {
+      return { bg: 'rgba(255,0,255,0.2)', text: '#ff00ff', label: '卖出' }
+    }
+    return { bg: 'rgba(139,92,246,0.2)', text: '#8b5cf6', label: action }
+  }
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
+    const minutes = Math.floor(diff / 60000)
+    const hours = Math.floor(diff / 3600000)
+    const days = Math.floor(diff / 86400000)
+
+    if (minutes < 1) return '刚刚'
+    if (minutes < 60) return `${minutes}分钟前`
+    if (hours < 24) return `${hours}小时前`
+    return `${days}天前`
   }
 
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem', background: '#0a0a0f', color: '#f8fafc' }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%)', color: '#f8fafc' }}>
+      <Toaster position="top-right" />
+
       {/* 导航栏 */}
       <nav style={{
         position: 'sticky',
@@ -82,7 +87,7 @@ export default function LogsPage() {
         backdropFilter: 'blur(24px)',
         borderBottom: '1px solid rgba(255,255,255,0.15)',
       }}>
-        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 1rem' }}>
+        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '4rem' }}>
             <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
               <div style={{
@@ -106,254 +111,186 @@ export default function LogsPage() {
       </nav>
 
       {/* 主内容 */}
-      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1rem 6rem' }}>
+      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem 1rem 6rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 2rem 0', background: 'linear-gradient(135deg, #00ff88, #00d4ff, #ff00ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
           📜 狩猎日志
         </h1>
 
-        {/* 统计卡片 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-          <StatCard
-            title="总记录"
-            value={stats.totalTrades}
-            icon="📊"
-            color="#00d4ff"
-          />
-          <StatCard
-            title="成功"
-            value={stats.successfulTrades}
-            icon="✅"
-            color="#10b981"
-          />
-          <StatCard
-            title="失败"
-            value={stats.failedTrades}
-            icon="❌"
-            color="#ef4444"
-          />
-          <StatCard
-            title="总 PnL"
-            value={`$${stats.totalPnl.toFixed(2)}`}
-            icon="💰"
-            color={stats.totalPnl >= 0 ? '#10b981' : '#ef4444'}
-            isPnl
-          />
+        {/* Tab 切换 */}
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+          <button
+            onClick={() => setActiveTab('logs')}
+            style={{
+              background: activeTab === 'logs' ? 'rgba(0,212,255,0.2)' : 'rgba(255,255,255,0.05)',
+              color: activeTab === 'logs' ? '#00d4ff' : '#9ca3af',
+              border: `1px solid ${activeTab === 'logs' ? 'rgba(0,212,255,0.3)' : 'rgba(255,255,255,0.1)'}`,
+              borderRadius: '0.75rem',
+              padding: '0.75rem 1.5rem',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              transition: 'all 0.3s ease',
+            }}
+          >
+            📝 Agent 日志
+          </button>
+          <button
+            onClick={() => setActiveTab('trades')}
+            style={{
+              background: activeTab === 'trades' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)',
+              color: activeTab === 'trades' ? '#10b981' : '#9ca3af',
+              border: `1px solid ${activeTab === 'trades' ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.1)'}`,
+              borderRadius: '0.75rem',
+              padding: '0.75rem 1.5rem',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              transition: 'all 0.3s ease',
+            }}
+          >
+            💰 交易记录
+          </button>
         </div>
 
-        {/* 交易记录表格 */}
+        {/* 内容区域 */}
         <div style={{
           background: 'rgba(255,255,255,0.05)',
           backdropFilter: 'blur(20px)',
           border: '1px solid rgba(255,255,255,0.1)',
           borderRadius: '1rem',
           padding: '1.5rem',
+          minHeight: '400px',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>交易记录</h2>
-            <div style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
-              第 {currentPage} / {totalPages} 页
-            </div>
-          </div>
-
           {loading ? (
             <div style={{ textAlign: 'center', padding: '3rem 0', color: '#9ca3af' }}>
+              <div style={{ width: '2rem', height: '2rem', border: '2px solid rgba(0,255,136,0.3)', borderTopColor: '#00ff88', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 1rem' }} />
               加载中...
             </div>
-          ) : trades.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem 0', color: '#9ca3af' }}>
-              <p style={{ fontSize: '1.125rem' }}>暂无交易记录</p>
-              <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>启动 Agent 开始自动交易</p>
-            </div>
+          ) : activeTab === 'logs' ? (
+            logs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem 0', color: '#6b7280' }}>
+                <p style={{ fontSize: '1.125rem' }}>暂时没有 Agent 日志</p>
+                <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>启动 Agent 后会自动记录日志</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {logs.map((log) => (
+                  <div
+                    key={log.id}
+                    style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${getLevelColor(log.level).bg.replace('0.2', '0.1')}`,
+                      borderRadius: '0.75rem',
+                      padding: '1rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          background: getLevelColor(log.level).bg,
+                          color: getLevelColor(log.level).text,
+                        }}>
+                          {log.level.toUpperCase()}
+                        </span>
+                        {log.action && (
+                          <span style={{
+                            display: 'inline-flex',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '9999px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            background: getActionColor(log.action).bg,
+                            color: getActionColor(log.action).text,
+                          }}>
+                            {getActionColor(log.action).label}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                          {formatTime(log.created_at)}
+                        </span>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '0.875rem', color: '#f8fafc', margin: 0 }}>
+                      {log.message}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )
           ) : (
-            <>
+            trades.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem 0', color: '#6b7280' }}>
+                <p style={{ fontSize: '1.125rem' }}>暂时没有交易记录</p>
+                <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Agent 发现信号后会自动交易</p>
+              </div>
+            ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                      <th style={{ textAlign: 'left', padding: '1rem', color: '#9ca3af', fontWeight: 500 }}>代币</th>
-                      <th style={{ textAlign: 'left', padding: '1rem', color: '#9ca3af', fontWeight: 500 }}>操作</th>
-                      <th style={{ textAlign: 'left', padding: '1rem', color: '#9ca3af', fontWeight: 500 }}>数量</th>
-                      <th style={{ textAlign: 'left', padding: '1rem', color: '#9ca3af', fontWeight: 500 }}>价格</th>
-                      <th style={{ textAlign: 'left', padding: '1rem', color: '#9ca3af', fontWeight: 500 }}>价值</th>
-                      <th style={{ textAlign: 'left', padding: '1rem', color: '#9ca3af', fontWeight: 500 }}>PnL</th>
-                      <th style={{ textAlign: 'left', padding: '1rem', color: '#9ca3af', fontWeight: 500 }}>状态</th>
-                      <th style={{ textAlign: 'left', padding: '1rem', color: '#9ca3af', fontWeight: 500 }}>时间</th>
+                      <th style={{ textAlign: 'left', padding: '1rem', fontSize: '0.875rem', color: '#9ca3af' }}>代币</th>
+                      <th style={{ textAlign: 'left', padding: '1rem', fontSize: '0.875rem', color: '#9ca3af' }}>操作</th>
+                      <th style={{ textAlign: 'left', padding: '1rem', fontSize: '0.875rem', color: '#9ca3af' }}>金额</th>
+                      <th style={{ textAlign: 'left', padding: '1rem', fontSize: '0.875rem', color: '#9ca3af' }}>PnL</th>
+                      <th style={{ textAlign: 'left', padding: '1rem', fontSize: '0.875rem', color: '#9ca3af' }}>时间</th>
+                      <th style={{ textAlign: 'left', padding: '1rem', fontSize: '0.875rem', color: '#9ca3af' }}>状态</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {trades.map((trade) => {
-                      const statusColor = getStatusColor(trade.status)
-                      const actionColor = getActionColor(trade.action)
-                      const pnl = trade.pnl || 0
-                      const pnlPercent = trade.pnl_percent || 0
-
-                      return (
-                        <tr key={trade.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                          <td style={{ padding: '1rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                              <div style={{
-                                width: '2rem',
-                                height: '2rem',
-                                background: 'linear-gradient(135deg, #00ff88, #00d4ff)',
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontWeight: 700,
-                                color: '#000',
-                              }}>
-                                {trade.token_symbol[0]}
-                              </div>
-                              <span style={{ fontWeight: 600 }}>{trade.token_symbol}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '1rem' }}>
-                            <span style={{
-                              padding: '0.25rem 0.75rem',
-                              background: actionColor.bg,
-                              color: actionColor.text,
-                              borderRadius: '0.25rem',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                            }}>
-                              {actionColor.label}
-                            </span>
-                          </td>
-                          <td style={{ padding: '1rem', color: '#f8fafc' }}>
-                            {trade.amount?.toFixed(4) || '0'}
-                          </td>
-                          <td style={{ padding: '1rem', color: '#f8fafc' }}>
-                            ${trade.price?.toFixed(6) || '0'}
-                          </td>
-                          <td style={{ padding: '1rem', color: '#f8fafc' }}>
-                            ${trade.value_usd?.toFixed(2) || '0'}
-                          </td>
-                          <td style={{ padding: '1rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                              <span style={{ color: pnl >= 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
-                                {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-                              </span>
-                              <span style={{ fontSize: '0.75rem', color: pnlPercent >= 0 ? '#10b981' : '#ef4444' }}>
-                                {pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
-                              </span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '1rem' }}>
-                            <span style={{
-                              padding: '0.25rem 0.75rem',
-                              background: statusColor.bg,
-                              color: statusColor.text,
-                              borderRadius: '0.25rem',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                            }}>
-                              {statusColor.label}
-                            </span>
-                          </td>
-                          <td style={{ padding: '1rem', color: '#9ca3af', fontSize: '0.875rem' }}>
-                            {new Date(trade.created_at).toLocaleString('zh-CN')}
-                          </td>
-                        </tr>
-                      )
-                    })}
+                    {trades.map((trade) => (
+                      <tr key={trade.id} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '1rem', fontWeight: 600 }}>{trade.token_symbol}</td>
+                        <td style={{ padding: '1rem' }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '9999px',
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            background: getActionColor(trade.action).bg,
+                            color: getActionColor(trade.action).text,
+                          }}>
+                            {getActionColor(trade.action).label}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem', color: '#9ca3af' }}>${(trade.value_usd || 0).toFixed(2)}</td>
+                        <td style={{ padding: '1rem', fontWeight: 700, color: (trade.pnl || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                          {(trade.pnl || 0) >= 0 ? '+' : ''}${(trade.pnl || 0).toFixed(2)}
+                        </td>
+                        <td style={{ padding: '1rem', color: '#9ca3af' }}>{formatTime(trade.created_at)}</td>
+                        <td style={{ padding: '1rem' }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '9999px',
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            background: trade.status === 'completed' ? 'rgba(16,185,129,0.2)' : trade.status === 'failed' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)',
+                            color: trade.status === 'completed' ? '#10b981' : trade.status === 'failed' ? '#ef4444' : '#f59e0b',
+                          }}>
+                            {trade.status === 'completed' ? '✅ 完成' : trade.status === 'failed' ? '❌ 失败' : '⏳ 进行中'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
-
-              {/* 分页 */}
-              {totalPages > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '2rem' }}>
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      background: currentPage === 1 ? 'rgba(255,255,255,0.05)' : 'rgba(0,255,136,0.2)',
-                      color: currentPage === 1 ? '#6b7280' : '#00ff88',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '0.5rem',
-                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                      fontSize: '0.875rem',
-                    }}
-                  >
-                    ← 上一页
-                  </button>
-                  
-                  <div style={{ display: 'flex', gap: '0.25rem' }}>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        style={{
-                          padding: '0.5rem 0.75rem',
-                          background: currentPage === page ? 'rgba(0,255,136,0.2)' : 'rgba(255,255,255,0.05)',
-                          color: currentPage === page ? '#00ff88' : '#9ca3af',
-                          border: currentPage === page ? '1px solid rgba(0,255,136,0.3)' : '1px solid rgba(255,255,255,0.1)',
-                          borderRadius: '0.5rem',
-                          cursor: 'pointer',
-                          fontSize: '0.875rem',
-                          fontWeight: currentPage === page ? 600 : 400,
-                        }}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      background: currentPage === totalPages ? 'rgba(255,255,255,0.05)' : 'rgba(0,255,136,0.2)',
-                      color: currentPage === totalPages ? '#6b7280' : '#00ff88',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '0.5rem',
-                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                      fontSize: '0.875rem',
-                    }}
-                  >
-                    下一页 →
-                  </button>
-                </div>
-              )}
-            </>
+            )
           )}
         </div>
       </main>
-    </div>
-  )
-}
 
-/**
- * 统计卡片组件
- */
-function StatCard({ title, value, icon, color, isPnl = false }: any) {
-  const displayValue = typeof value === 'number' && isPnl 
-    ? `${value >= 0 ? '+' : ''}$${value.toFixed(2)}`
-    : value
-
-  return (
-    <div style={{
-      padding: '1.5rem',
-      background: 'rgba(255,255,255,0.05)',
-      borderRadius: '1rem',
-      border: `1px solid ${color}33`,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-        <span style={{ fontSize: '1.5rem' }}>{icon}</span>
-        <span style={{
-          padding: '0.25rem 0.75rem',
-          background: `${color}22`,
-          color: color,
-          borderRadius: '0.5rem',
-          fontSize: '0.75rem',
-        }}>
-          统计
-        </span>
-      </div>
-      <div style={{ fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.25rem' }}>{title}</div>
-      <div style={{ fontSize: '1.875rem', fontWeight: 700, color }}>{displayValue}</div>
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   )
 }

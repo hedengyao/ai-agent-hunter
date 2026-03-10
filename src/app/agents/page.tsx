@@ -176,12 +176,12 @@ export default function AgentsPage() {
                     <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
                       <div>
                         <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>胜率</p>
-                        <p style={{ fontSize: '1.125rem', fontWeight: 700, color: '#10b981' }}>{agent.win_rate?.toFixed(2) || '0.00'}%</p>
+                        <p style={{ fontSize: '1.125rem', fontWeight: 700, color: '#10b981' }}>{(agent.win_rate ?? 0).toFixed(2)}%</p>
                       </div>
                       <div>
                         <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>收益</p>
-                        <p style={{ fontSize: '1.125rem', fontWeight: 700, color: agent.total_pnl >= 0 ? '#00ff88' : '#ef4444' }}>
-                          {agent.total_pnl >= 0 ? '+' : ''}${agent.total_pnl?.toFixed(2) || '0'}
+                        <p style={{ fontSize: '1.125rem', fontWeight: 700, color: (agent.total_pnl ?? 0) >= 0 ? '#00ff88' : '#ef4444' }}>
+                          {(agent.total_pnl ?? 0) >= 0 ? '+' : ''}${(agent.total_pnl ?? 0).toFixed(2)}
                         </p>
                       </div>
                       <div>
@@ -190,13 +190,13 @@ export default function AgentsPage() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button 
+                      <button
                         onClick={() => editAgent(agent.id)}
-                        style={{ 
-                          background: 'rgba(255,255,255,0.1)', 
-                          border: 'none', 
+                        style={{
+                          background: 'rgba(255,255,255,0.1)',
+                          border: 'none',
                           borderRadius: '0.5rem',
-                          cursor: 'pointer', 
+                          cursor: 'pointer',
                           fontSize: '1.25rem',
                           padding: '0.5rem',
                         }}
@@ -204,13 +204,13 @@ export default function AgentsPage() {
                       >
                         ⚙️
                       </button>
-                      <button 
+                      <button
                         onClick={() => toggleAgent(agent.id, agent.status)}
-                        style={{ 
-                          background: agent.status === 'running' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)', 
-                          border: 'none', 
+                        style={{
+                          background: agent.status === 'running' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)',
+                          border: 'none',
                           borderRadius: '0.5rem',
-                          cursor: 'pointer', 
+                          cursor: 'pointer',
                           fontSize: '1rem',
                           padding: '0.5rem 1rem',
                           fontWeight: 600,
@@ -227,9 +227,16 @@ export default function AgentsPage() {
             ))}
           </div>
         ) : (
-          <div style={{ textAlign: 'center', padding: '4rem 0', color: '#9ca3af' }}>
-            <p style={{ fontSize: '1.125rem' }}>暂无 Agent</p>
-            <a href="/agents/edit" style={{ color: '#00d4ff', textDecoration: 'none', marginTop: '1rem', display: 'inline-block' }}>创建第一个 Agent →</a>
+          <div style={{
+            minHeight: '400px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(255,255,255,0.03)',
+            borderRadius: '1rem',
+            border: '1px dashed rgba(255,255,255,0.1)',
+          }}>
+            <p style={{ fontSize: '1.125rem', color: '#6b7280' }}>暂时没有创建 Agent</p>
           </div>
         )}
       </main>
